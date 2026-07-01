@@ -3,10 +3,13 @@ from pydantic import BaseModel
 import numpy as np
 import pickle
 
-# Load model
-with open("model.pkl", "rb") as f:
+# Load model and encoder from files uploaded to the Hugging Face Space
+with open("churn_rf_healthy_meals.pkl", "rb") as f:
     model = pickle.load(f)
 
+with open("churn_encoder_healthy_meals.pkl", "rb") as f:
+    encoder = pickle.load(f)
+    
 app = FastAPI()
 
 # Define input schema
@@ -16,18 +19,46 @@ class InputData(BaseModel):
     education: str
 
 @app.post("/predict")
-def predict(data: InputData):
-    # Define categories
-    income_categories = ["Low", "Medium", "High", "Very High"]
-    education_categories = ["High School", "Other", "Graduate", "Post Graduate"]
 
-    # One-hot encode with drop='first'
-    income_encoded = [1 if data.income_range.lower() == cat.lower() else 0 for cat in income_categories[1:]]
-    education_encoded = [1 if data.education.lower() == cat.lower() else 0 for cat in education_categories[1:]]
+def predict(age, income_level, education, device_type, tech_comfort_score):
+    """
+    Predict renewal probability for a single customer.
+    The input values must be passed through the same encoder used during
+    training. We build a one-row DataFrame with the raw categorical values
+    (matching the column names the encoder was fit on), transform it, then
+    combine with the numeric features in the same order as the training
+    feature matrix:
+        Training column order (from Step 4 of the training notebook):
+        [AGE, TECH_COMFORT_SCORE, <encoded dummies in encoder order>]
+    Bug note: do NOT recreate the one-hot logic by hand — case mismatches
+    or category order differences will produce a constant all-zeros input
+    and a constant prediction regardless of what the user enters.
+    """
 
-    # Combine features
-    input_data = np.array([income_encoded + education_encoded + [data.age]])
+    # Build a single-row DataFrame with the raw categorical values.
+    # Column names must match exactly what the encoder was fit on (UPPERCASE).
+    raw = pd.DataFrame([{
+        'INCOME_LEVEL': income_level,
+        'EDUCATION':    education,
+        'DEVICE_TYPE':  device_type,
+    }])
 
-    # Predict probability
-    probability = model.predict_proba(input_data)[0][1]
-    return {"renewal_probability": round(probability, 2)}
+    # Apply the saved encoder (transform only — never fit_transform here)
+    encoded = encoder.transform(raw)
+    encoded_df = pd.DataFrame(encoded, columns=encoder.get_feature_names_out())
+
+    # Build the numeric part of the feature vector
+    numeric_df = pd.DataFrame([{
+        'AGE':               age,
+        'TECH_COMFORT_SCORE': tech_comfort_score,
+    }])
+
+    # Combine in the same column order as the training feature matrix:
+    # numeric columns first, then encoded dummies
+    input_df = pd.concat([numeric_df, encoded_df], axis=1)
+
+    # Predict: column 1 = P(renewed), column 0 = P(churned)
+    probability = model.predict_proba(input_df)[0][1]
+
+    risk = "Low" if probability >= 0.6 else "Medium" if probability >= 0.4 else "High"
+    return f"Renewal Probability: {probability:.2f}  |  Churn Risk: {risk}"
