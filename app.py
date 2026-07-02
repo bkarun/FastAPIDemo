@@ -21,8 +21,12 @@ class InputData(BaseModel):
     tech_comfort_score: int
 
 @app.post("/predict")
-
-def predict(age, income_level, education, device_type, tech_comfort_score):
+def predict(data: InputData):
+    age = data.age
+    income_level = data.income_level
+    education = data.education
+    device_type = data.device_type
+    tech_comfort_score = data.tech_comfort_score
     """
     Predict renewal probability for a single customer.
     The input values must be passed through the same encoder used during
