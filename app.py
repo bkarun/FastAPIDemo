@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import numpy as np
 import pickle
+import pandas as pd
 
 # Load model and encoder from files uploaded to the Hugging Face Space
 with open("churn_rf_healthy_meals.pkl", "rb") as f:
