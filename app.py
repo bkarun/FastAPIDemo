@@ -15,8 +15,10 @@ app = FastAPI()
 # Define input schema
 class InputData(BaseModel):
     age: float
-    income_range: str
+    income_level: str
     education: str
+    device_type: str
+    tech_comfort_score: int
 
 @app.post("/predict")
 
