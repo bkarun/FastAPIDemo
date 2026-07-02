@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import numpy as np
 import pickle
-import pandas as pd
 
 # Load model and encoder from files uploaded to the Hugging Face Space
 with open("churn_rf_healthy_meals.pkl", "rb") as f:
@@ -23,12 +22,7 @@ class InputData(BaseModel):
 
 @app.post("/predict")
 
-def predict(data: InputData):
-    age = data.age
-    income_level = data.income_level
-    education = data.education
-    device_type = data.device_type
-    tech_comfort_score = data.tech_comfort_score
+def predict(age, income_level, education, device_type, tech_comfort_score):
     """
     Predict renewal probability for a single customer.
     The input values must be passed through the same encoder used during
